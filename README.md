@@ -1,17 +1,11 @@
 # Ubuntu + Btrfs + Automatic Snapshots
 
-This script creates Btrfs subvolumes (while still in Live CD/USB mode) and configures automatic snapshots for Ubuntu 24.04 (or newer) and compatible derivatives.
+This script creates Btrfs subvolumes (while still in Live CD/USB mode) for Ubuntu 24.04 (or newer) and compatible derivatives.
 
 ## What the Script Does
 
 - Creates Btrfs subvolumes:  
   - `@`, `@home`, `@log`, `@cache`, `@tmp`, `@libvirt`, `@flatpak`  
-- Enables automatic snapshots  
-- Adds snapshot entries to the GRUB boot menu  
-- Installs and configures:  
-  - `snapper` for managing snapshots  
-  - `grub-btrfs` to integrate snapshots into GRUB  
-  - `btrfs-assistant` (a GUI application for Snapper snapshot management)  
 
 ## Requirements
 
@@ -106,18 +100,82 @@ sudo ./ubuntu-btrfs-install.sh sda3 sda2 sda1
 
 ### ✅ Done!
 
-You can now reboot and enjoy Ubuntu with Btrfs and automatic snapshots.
+You can now reboot before installing Snapper and Btrfs Assistant for automatic snapshots.
 
-💡 Tip: To view Btrfs subvolumes, open **Btrfs Assistant** → “Subvolumes” tab
-Or run:
+💡 Tip: to view Btrfs subvolumes run:
 
 ```bash
 sudo btrfs subvolume list /
 ```
 
+## 📦 Manual Installation of Snapper and Btrfs Assistant (Post-Installation)
+Snapper is a snapshot manager and Btrfs Assistant is a Snapper GUI.
+
+```bash
+sudo apt update
+sudo apt install -y snapper btrfs-assistant
+```
+
+Create Snapper root config:
+
+```bash
+sudo snapper -c root create-config /
+```
+
+Enable timeline and cleanup timers:
+
+```bash
+sudo systemctl enable --now snapper-timeline.timer snapper-cleanup.timer
+```
+
+You can now launch **Btrfs Assistant** from your application menu or run:
+
+```bash
+btrfs-assistant
+```
+
+## ⚙️ Automatic Snapshots Configuration 
+After rebooting the system:
+
+1. Open **Btrfs Assistant** from your application menu.
+2. On the **"Snapper"** tab, select or create the New **root** config (`/`).
+3. On the **"Snapper Settings"** tab 🟢 **Enable timeline snapshots**:
+   - Hourly save: 10
+   - Daily save: 10
+   - Weekly save: 0
+   - Montthly save: 3
+   - Yearly save: 1
+   - Number save: 10
+- System unit settings:
+
+   * 🟢 Check **"Enable cleanup enabled"**
+   * 🟢 Check **"Snapper timeline enabled"**
+   * ❌ Keep unmarked **"Snapper boot"**
+     - With a separate /boot on ext4, enabling Boot Snapshots is not recommended because:
+     - They will have no real effect.
+     - They may cause confusion or failures in system restores (since /boot will not be included in Btrfs snapshots).
+     
+4. Adjust snapshot limits in the graphical interface:
+
+   * Hourly, Daily, Monthly retention  
+
+5. Click **"Save Changes"**.
+
+
+### ✅ Done! Your system now has snapshots automatically.
+
+
+### Screenshots
+
+- Btrfs Assistant "Snapper"
+![Btrfs Assistant Snapper](https://gitlab.com/-/project/32535488/uploads/65b6004c3257d66154828259a0fed47d/image.png)
+
+- Btrfs Assistant "Snapper Settings"
+![Btrfs Assistant Snapper Settings](https://gitlab.com/-/project/32535488/uploads/429be74e9fb92088697944d23a1def1d/image.png)
+
 ## License
 
-MIT License — [View License](https://github.com/diogopessoa/ubuntu-btrfs-install/blob/main/LICENSE)
+MIT License — [View License](https://github.com/diogopessoa/ubuntu-btrfs-install/blob/main/LICENSE) You can use, modify, and contribute!
 
 ## Credits
 
