@@ -6,15 +6,15 @@
 
 set -e
 
-script=`readlink -f "$0"`
-scriptname=`basename "$script"`
-[ `id -u` -eq 0 ] || { echo "ERRO: Este script deve ser executado como root."; exit 1; }
+script=$(readlink -f "$0")
+scriptname=$(basename "$script")
+[ $(id -u) -eq 0 ] || { echo "ERRO: This script must be run as root."; exit 1; }
 
 mp=/mnt/root
 
 show_help() {
-    echo "Cria subvolumes Btrfs e ajusta o fstab."
-    echo "Uso: $scriptname {root-dev} {boot-dev} [{efi-dev}]"
+    echo "Create Btrfs subvolumes and adjust fstab."
+    echo "Usage: $scriptname {root-dev} {boot-dev} [{efi-dev}]"
     exit 1
 }
 
@@ -30,7 +30,7 @@ efi=false
 [ -n "$efidev" ] && efi=true
 
 preparation() {
-    echo "--- Preparando ambiente ---"
+    echo "--- Preparing the environment ---"
     umount /target/boot/efi 2>/dev/null || true
     umount /target/boot 2>/dev/null || true
     umount /target 2>/dev/null || true
@@ -38,7 +38,7 @@ preparation() {
 }
 
 create_subvols() {
-    echo "--- Criando subvolumes Btrfs ---"
+    echo "--- Creating Btrfs Subvolumes ---"
     mount /dev/"$rootdev" "$mp"
     cd "$mp"
 
@@ -46,9 +46,15 @@ create_subvols() {
 
     find -maxdepth 1 \! -name "@*" \! -name . -exec rm -Rf {} \;
 
-    for subvol in @home @log @cache @tmp @libvirt; do
-        btrfs subvolume create $subvol
-        mkdir -p $subvol
+    subvols=(
+        @home @log @cache @tmp @libvirt
+        @flatpak @docker @containers @machines
+        @var_tmp @opt
+    )
+
+    for subvol in "${subvols[@]}"; do
+        btrfs subvolume create "$subvol"
+        mkdir -p "$subvol"
     done
 
     [ -d var/log ] && mv var/log/* @log/ 2>/dev/null || true
@@ -60,37 +66,43 @@ create_subvols() {
 }
 
 ajusta_fstab() {
-    echo "--- Ajustando /etc/fstab ---"
-    root_uuid=`blkid --output export /dev/"$rootdev" | grep ^UUID=`
+    echo "--- Adjusting /etc/fstab ---"
+    root_uuid=$(blkid --output export /dev/"$rootdev" | grep ^UUID=)
     fstab_path="$mp/etc/fstab"
 
     sed -i "/ btrfs /d" "$fstab_path"
     sed -i "/ swap /d" "$fstab_path"
 
-    echo "$root_uuid / btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@ 0 0" >> "$fstab_path"
-    echo "$root_uuid /home btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@home 0 0" >> "$fstab_path"
-    echo "$root_uuid /var/log btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@var_log 0 0" >> "$fstab_path"
-    echo "$root_uuid /var/cache btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@var_cache 0 0" >> "$fstab_path"
-    echo "$root_uuid /var/lib/libvirt btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@libvirt 0 0" >> "$fstab_path"
-    echo "$root_uuid /var/lib/flatpak btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@flatpak 0 0" >> "$fstab_path"
-    echo "$root_uuid /var/lib/docker btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@docker 0 0" >> "$fstab_path"
-    echo "$root_uuid /var/lib/containers btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@containers 0 0" >> "$fstab_path"
-   echo "$root_uuid /var/lib/machines btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@machines 0 0" >> "$fstab_path"
-   echo "$root_uuid /var/tmp btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@var_tmp 0 0" >> "$fstab_path"
-   echo "$root_uuid /tmp btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@tmp 0 0" >> "$fstab_path"
-   echo "$root_uuid /opt btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=@opt 0 0" >> "$fstab_path"
+    declare -A mountpoints=(
+        [@]="/"
+        [@home]="/home"
+        [@log]="/var/log"
+        [@cache]="/var/cache"
+        [@libvirt]="/var/lib/libvirt"
+        [@flatpak]="/var/lib/flatpak"
+        [@docker]="/var/lib/docker"
+        [@containers]="/var/lib/containers"
+        [@machines]="/var/lib/machines"
+        [@var_tmp]="/var/tmp"
+        [@tmp]="/tmp"
+        [@opt]="/opt"
+    )
 
-    boot_uuid=`blkid --output export /dev/"$bootdev" | grep ^UUID=`
+    for subvol in "${!mountpoints[@]}"; do
+        echo "$root_uuid ${mountpoints[$subvol]} btrfs defaults,ssd,discard=async,noatime,space_cache=v2,compress=zstd:1,subvol=$subvol 0 0" >> "$fstab_path"
+    done
+
+    boot_uuid=$(blkid --output export /dev/"$bootdev" | grep ^UUID=)
     echo "$boot_uuid /boot ext4 defaults 0 2" >> "$fstab_path"
 
     if [ "$efi" = true ]; then
-        efi_uuid=`blkid --output export /dev/"$efidev" | grep ^UUID=`
+        efi_uuid=$(blkid --output export /dev/"$efidev" | grep ^UUID=)
         echo "$efi_uuid /boot/efi vfat umask=0077 0 1" >> "$fstab_path"
     fi
 }
 
 chroot_and_update() {
-    echo "--- Ambiente chroot ---"
+    echo "--- Environment chroot ---"
     for dir in proc sys dev run; do
         mount --bind /$dir "$mp"/$dir
     done
@@ -102,7 +114,7 @@ chroot_and_update() {
 }
 
 unmount_everything() {
-    echo "--- Desmontando partições ---"
+    echo "--- Unmounting partitions ---"
     for dir in proc sys dev run; do
         umount "$mp"/$dir 2>/dev/null || true
     done
@@ -111,7 +123,7 @@ unmount_everything() {
     umount "$mp" 2>/dev/null || true
 }
 
-# Execução
+# Execucao
 preparation
 create_subvols
 ajusta_fstab
@@ -119,4 +131,4 @@ chroot_and_update
 unmount_everything
 
 echo "✅ Script completed successfully!"
-echo "🔁 Please reboot the system before installing Snapper and Btrfs Assistant for Snapshots."
+echo "🔁 Reboot before installing Snapper and Btrfs Assistant."
