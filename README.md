@@ -5,7 +5,7 @@ This script creates Btrfs subvolumes (while still in Live CD/USB mode) for Ubunt
 ## What the Script Does
 
 - Creates Btrfs subvolumes:  
-  - `@`, `@home`, `@log`, `@cache`, `@tmp`, `@libvirt`, `@flatpak`  
+  - `@home` `@log` `@cache` `@tmp` `@libvirt` `@flatpak` `@docker` `@containers` `@machines` `@var_tmp` `@opt` 
 
 ## Requirements
 
@@ -43,7 +43,9 @@ This guide uses Ubuntu 25.04 as an example.
    - Create the root **/** partition:  
      - Use all remaining space  
      - Format: Btrfs  
-     - Mount point: `/`  
+     - Mount point: `/`
+     - 
+Note: `/boot/efi` partition don't necessarily need to be created first. The `/boot` partition can be created first if the installer requires it.
 
 4. **Final Partition Table Should Look Like:**  
    - `/boot/efi` as FAT32 (vfat)  
@@ -90,11 +92,11 @@ chmod +x ubuntu-btrfs-install.sh
 ### Run the Script
 
 The argument order must be: `root` → `boot` → `efi`
-Example using `/dev/sda`:
 
 ```bash
 sudo ./ubuntu-btrfs-install.sh sda3 sda2 sda1
 ```
+This example is using `/dev/sda`
 
 > Double-check your partition names using `lsblk -f`
 
@@ -110,6 +112,8 @@ sudo btrfs subvolume list /
 
 ## 📦 Manual Installation of Snapper and Btrfs Assistant (Post-Installation)
 Snapper is a snapshot manager and Btrfs Assistant is a Snapper GUI.
+
+After rebooting the system, install:
 
 ```bash
 sudo apt update
@@ -134,12 +138,9 @@ You can now launch **Btrfs Assistant** from your application menu or run:
 btrfs-assistant
 ```
 
-## ⚙️ Automatic Snapshots Configuration 
-After rebooting the system:
+### Automatic Snapshots Configuration 
 
-1. Open **Btrfs Assistant** from your application menu.
-2. On the **"Snapper"** tab, select or create the New **root** config (`/`).
-3. On the **"Snapper Settings"** tab 🟢 **Enable timeline snapshots**:
+1. Now go to **"Snapper Settings"** tab 🟢 **Enable timeline snapshots**:
    - Hourly save: 10
    - Daily save: 10
    - Weekly save: 0
@@ -155,11 +156,7 @@ After rebooting the system:
      - They will have no real effect.
      - They may cause confusion or failures in system restores (since /boot will not be included in Btrfs snapshots).
      
-4. Adjust snapshot limits in the graphical interface:
-
-   * Hourly, Daily, Monthly retention  
-
-5. Click **"Save Changes"**.
+2. Click **"Apply systemd changes"**.
 
 
 ### ✅ Done! Your system now has snapshots automatically.
